@@ -200,6 +200,14 @@ router.get("/me", protect, async (req, res) => {
 
 router.patch("/profile", protect, async (req, res) => {
   try {
+    if (req.body.name !== undefined && !String(req.body.name).trim()) {
+      return res.status(400).json({ message: "Name is required." });
+    }
+
+    if (req.body.gender !== undefined && !["male", "female", "other"].includes(req.body.gender)) {
+      return res.status(400).json({ message: "Gender must be male, female, or other." });
+    }
+
     const allowed = ["name", "gender", "age", "height", "weight", "healthGoal", "emergencyContact", "dailyTargets"];
     allowed.forEach((field) => {
       if (req.body[field] !== undefined) req.user[field] = req.body[field];

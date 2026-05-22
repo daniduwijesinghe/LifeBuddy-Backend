@@ -8,6 +8,21 @@ const router = express.Router();
 
 router.post("/", protect, async (req, res) => {
   try {
+    const requiredMeals = req.body.meals || {};
+    const alcoholLevel = Number(req.body.alcoholLevel || 0);
+
+    if (!requiredMeals.breakfast || !requiredMeals.lunch || !requiredMeals.dinner) {
+      return res.status(400).json({ message: "Breakfast, lunch, and dinner are required." });
+    }
+
+    if (Number(req.body.waterLiters) <= 0) {
+      return res.status(400).json({ message: "Water liters must be greater than 0." });
+    }
+
+    if (alcoholLevel < 0 || alcoholLevel > 10) {
+      return res.status(400).json({ message: "Alcohol level must be from 0 to 10." });
+    }
+
     const result = calculateHealthScore(req.body);
 
     const log = await HealthLog.create({
