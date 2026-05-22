@@ -3,6 +3,7 @@ const jwt = require("jsonwebtoken");
 const User = require("../models/User");
 const { protect } = require("../middleware/authMiddleware");
 const { getSubscriptionStatus } = require("../services/subscriptionService");
+const { sendResetCode } = require("../services/emailService");
 
 const router = express.Router();
 
@@ -10,9 +11,25 @@ const generateToken = (id) => {
   return jwt.sign({ id }, process.env.JWT_SECRET, { expiresIn: "30d" });
 };
 
+const isValidEmail = (email = "") => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+
+const isStrongPassword = (password = "") => {
+  return /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).{8,}$/.test(password);
+};
+
 router.post("/register", async (req, res) => {
   try {
     const { name, email, password, age, height, weight, healthGoal, emergencyContact } = req.body;
+
+    if (!isValidEmail(email)) {
+      return res.status(400).json({ message: "Enter a valid email address with @ and domain." });
+    }
+
+    if (!isStrongPassword(password)) {
+      return res.status(400).json({
+        message: "Password must be 8+ characters with uppercase, lowercase, number, and symbol."
+      });
+    }
 
     const existingUser = await User.findOne({ email });
     if (existingUser) {
@@ -106,6 +123,66 @@ router.post("/login", async (req, res) => {
       },
       subscription
     });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+router.post("/forgot-password", async (req, res) => {
+  try {
+    const { email } = req.body;
+
+    if (!isValidEmail(email)) {
+      return res.status(400).json({ message: "Enter a valid email address." });
+    }
+
+    const user = await User.findOne({ email });
+    if (!user) {
+      return res.status(404).json({ message: "No account found with this email." });
+    }
+
+    const code = String(Math.floor(100000 + Math.random() * 900000));
+    user.resetCode = code;
+    user.resetCodeExpires = new Date(Date.now() + 10 * 60 * 1000);
+    await user.save();
+
+    const result = await sendResetCode(email, code);
+    res.json({
+      message: result.message,
+      sent: result.sent,
+      devCode: result.sent ? undefined : code
+    });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+router.post("/reset-password", async (req, res) => {
+  try {
+    const { email, code, password } = req.body;
+
+    if (!isStrongPassword(password)) {
+      return res.status(400).json({
+        message: "New password must be 8+ characters with uppercase, lowercase, number, and symbol."
+      });
+    }
+
+    const user = await User.findOne({
+      email,
+      resetCode: code,
+      resetCodeExpires: { $gt: new Date() }
+    });
+
+    if (!user) {
+      return res.status(400).json({ message: "Invalid or expired reset code." });
+    }
+
+    user.password = password;
+    user.resetCode = undefined;
+    user.resetCodeExpires = undefined;
+    await user.save();
+
+    res.json({ message: "Password reset successful. Please login." });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }

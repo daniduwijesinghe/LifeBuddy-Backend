@@ -1,5 +1,6 @@
 const express = require("express");
 const HealthLog = require("../models/HealthLog");
+const Notification = require("../models/Notification");
 const { protect } = require("../middleware/authMiddleware");
 const { calculateHealthScore, detectWeeklyPatterns } = require("../services/healthScoreService");
 
@@ -16,6 +17,13 @@ router.post("/", protect, async (req, res) => {
       status: result.status,
       recommendations: result.recommendations,
       warnings: result.warnings
+    });
+
+    await Notification.create({
+      user: req.user._id,
+      title: "Daily tracker saved",
+      message: `Your Life Health Score is ${result.score}% (${result.status}).`,
+      type: result.warnings.length ? "alcohol" : "report"
     });
 
     res.status(201).json(log);
@@ -47,6 +55,28 @@ router.get("/weekly-patterns", protect, async (req, res) => {
   const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
   const logs = await HealthLog.find({ user: req.user._id, date: { $gte: weekAgo } });
   res.json({ patterns: detectWeeklyPatterns(logs) });
+});
+
+router.get("/summary", protect, async (req, res) => {
+  const logs = await HealthLog.find({ user: req.user._id }).sort({ date: -1 }).limit(30);
+  const total = logs.length || 1;
+  const averageScore = Math.round(logs.reduce((sum, log) => sum + log.score, 0) / total);
+  const riskyDays = logs.filter((log) => log.status === "Risky").length;
+  const alcoholDays = logs.filter((log) => log.alcoholUsed).length;
+  const missedMedicine = logs.filter((log) => log.medicineStatus === "missed").length;
+  const exerciseTotal = logs.reduce((sum, log) => sum + log.exerciseMinutes, 0);
+  const points = logs.reduce((sum, log) => sum + Math.max(10, log.score), 0);
+
+  res.json({
+    averageScore: logs.length ? averageScore : 0,
+    riskyDays,
+    alcoholDays,
+    missedMedicine,
+    exerciseTotal,
+    points,
+    totalLogs: logs.length,
+    latestLogs: logs.slice(0, 5)
+  });
 });
 
 module.exports = router;

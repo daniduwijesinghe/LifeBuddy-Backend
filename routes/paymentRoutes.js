@@ -1,5 +1,6 @@
 const express = require("express");
 const Payment = require("../models/Payment");
+const Notification = require("../models/Notification");
 const { protect, adminOnly } = require("../middleware/authMiddleware");
 const { getSubscriptionStatus } = require("../services/subscriptionService");
 
@@ -23,6 +24,12 @@ router.post("/pay", protect, async (req, res) => {
     });
 
     const subscription = await getSubscriptionStatus(req.user);
+    await Notification.create({
+      user: req.user._id,
+      title: "Payment successful",
+      message: `${plan} plan activated until ${payment.expiryDate.toDateString()}.`,
+      type: "report"
+    });
     res.status(201).json({ payment, subscription });
   } catch (error) {
     res.status(500).json({ message: error.message });

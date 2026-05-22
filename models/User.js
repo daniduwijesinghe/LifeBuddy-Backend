@@ -24,6 +24,8 @@ const userSchema = new mongoose.Schema(
       }
     ],
     role: { type: String, enum: ["user", "admin"], default: "user" },
+    resetCode: String,
+    resetCodeExpires: Date,
     freeTrialStart: { type: Date, default: Date.now },
     freeTrialEnd: {
       type: Date,
