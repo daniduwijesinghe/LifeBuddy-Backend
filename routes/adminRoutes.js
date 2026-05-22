@@ -4,6 +4,7 @@ const HealthLog = require("../models/HealthLog");
 const Medicine = require("../models/Medicine");
 const Payment = require("../models/Payment");
 const Notification = require("../models/Notification");
+const Feedback = require("../models/Feedback");
 const WeeklyReport = require("../models/WeeklyReport");
 const { protect, adminOnly } = require("../middleware/authMiddleware");
 
@@ -12,13 +13,14 @@ const router = express.Router();
 router.use(protect, adminOnly);
 
 router.get("/summary", async (req, res) => {
-  const [users, healthLogs, medicines, payments, reports, notifications, paidPayments, riskyLogs, alcoholLogs] = await Promise.all([
+  const [users, healthLogs, medicines, payments, reports, notifications, feedback, paidPayments, riskyLogs, alcoholLogs] = await Promise.all([
     User.countDocuments({ role: "user" }),
     HealthLog.countDocuments(),
     Medicine.countDocuments(),
     Payment.countDocuments(),
     WeeklyReport.countDocuments(),
     Notification.countDocuments(),
+    Feedback.countDocuments(),
     Payment.find({ paymentStatus: "Paid" }),
     HealthLog.countDocuments({ status: "Risky" }),
     HealthLog.countDocuments({ alcoholUsed: true })
@@ -33,6 +35,7 @@ router.get("/summary", async (req, res) => {
     payments,
     reports,
     notifications,
+    feedback,
     riskyLogs,
     alcoholLogs,
     revenue
@@ -84,6 +87,25 @@ router.get("/notifications", async (req, res) => {
     .sort({ createdAt: -1 })
     .limit(100);
   res.json(notifications);
+});
+
+router.get("/feedback", async (req, res) => {
+  const feedback = await Feedback.find()
+    .populate("user", "name email")
+    .sort({ createdAt: -1 })
+    .limit(100);
+  res.json(feedback);
+});
+
+router.patch("/feedback/:id/status", async (req, res) => {
+  const feedback = await Feedback.findByIdAndUpdate(
+    req.params.id,
+    { status: req.body.status || "reviewed" },
+    { new: true }
+  ).populate("user", "name email");
+
+  if (!feedback) return res.status(404).json({ message: "Feedback not found" });
+  res.json(feedback);
 });
 
 module.exports = router;

@@ -2,9 +2,14 @@ const calculateHealthScore = (log) => {
   let score = 50;
   const recommendations = [];
   const warnings = [];
+  const mealCount = ["breakfast", "lunch", "dinner"].filter((meal) => log.meals?.[meal]).length;
+  const alcoholLevel = log.alcoholLevel || (log.alcoholUsed ? "medium" : "none");
 
   if (log.waterLiters >= 2) score += 10;
   else recommendations.push("Drink more water today. Try to reach at least 2 liters.");
+
+  if (mealCount >= 3) score += 8;
+  else recommendations.push("Try to eat three balanced meals: breakfast, lunch, and dinner.");
 
   if (log.sleepHours >= 7) score += 10;
   else if (log.sleepHours < 6) {
@@ -31,10 +36,12 @@ const calculateHealthScore = (log) => {
     recommendations.push("Reduce soft drinks and choose water more often.");
   }
 
-  if (log.alcoholUsed) {
-    score -= 15;
+  if (log.alcoholUsed || alcoholLevel !== "none") {
+    const alcoholPenalty = alcoholLevel === "high" ? 25 : alcoholLevel === "medium" ? 18 : 10;
+    score -= alcoholPenalty;
     warnings.push("You recorded alcohol today. Please do not drive.");
     warnings.push("Use a taxi, call a trusted person, or rest before travelling.");
+    if (alcoholLevel === "high") warnings.push("Your alcohol safety level is high risk. Avoid travelling alone or operating machines.");
   }
 
   if (log.stressLevel >= 7 || ["stressed", "anxious", "sad"].includes(log.mood)) {
@@ -62,12 +69,14 @@ const detectWeeklyPatterns = (logs) => {
   const alcoholCount = logs.filter((log) => log.alcoholUsed).length;
   const missedMedicine = logs.filter((log) => log.medicineStatus === "missed").length;
   const lowWaterDays = logs.filter((log) => log.waterLiters < 2).length;
+  const missingMealDays = logs.filter((log) => ["breakfast", "lunch", "dinner"].filter((meal) => log.meals?.[meal]).length < 3).length;
 
   if (lowSleepDays >= 4) messages.push("Your sleep pattern is unhealthy this week. Try to sleep earlier.");
   if (oilyTotal >= 5) messages.push("You ate oily food many times this week. Please reduce fried food.");
   if (alcoholCount > 0) messages.push("Alcohol was recorded this week. Do not drive after drinking.");
   if (missedMedicine > 0) messages.push("You missed medicine this week. Use reminders to stay on schedule.");
   if (lowWaterDays >= 4) messages.push("Your water intake was low on many days. Keep a bottle near you.");
+  if (missingMealDays >= 3) messages.push("You missed balanced meal tracking on several days. Plan three simple meals daily.");
 
   if (messages.length === 0) messages.push("Your weekly pattern looks stable. Keep improving step by step.");
   return messages;
