@@ -3,7 +3,7 @@ const calculateHealthScore = (log) => {
   const recommendations = [];
   const warnings = [];
   const mealCount = ["breakfast", "lunch", "dinner"].filter((meal) => log.meals?.[meal]).length;
-  const alcoholLevel = log.alcoholLevel || (log.alcoholUsed ? "medium" : "none");
+  const alcoholLevel = Number(log.alcoholLevel || 0);
 
   if (log.waterLiters >= 2) score += 10;
   else recommendations.push("Drink more water today. Try to reach at least 2 liters.");
@@ -36,12 +36,12 @@ const calculateHealthScore = (log) => {
     recommendations.push("Reduce soft drinks and choose water more often.");
   }
 
-  if (log.alcoholUsed || alcoholLevel !== "none") {
-    const alcoholPenalty = alcoholLevel === "high" ? 25 : alcoholLevel === "medium" ? 18 : 10;
+  if (log.alcoholUsed || alcoholLevel > 0) {
+    const alcoholPenalty = alcoholLevel >= 8 ? 25 : alcoholLevel >= 4 ? 18 : 10;
     score -= alcoholPenalty;
     warnings.push("You recorded alcohol today. Please do not drive.");
     warnings.push("Use a taxi, call a trusted person, or rest before travelling.");
-    if (alcoholLevel === "high") warnings.push("Your alcohol safety level is high risk. Avoid travelling alone or operating machines.");
+    if (alcoholLevel >= 8) warnings.push("Your alcohol safety level is high risk. Avoid travelling alone or operating machines.");
   }
 
   if (log.stressLevel >= 7 || ["stressed", "anxious", "sad"].includes(log.mood)) {

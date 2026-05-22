@@ -19,7 +19,7 @@ const isStrongPassword = (password = "") => {
 
 router.post("/register", async (req, res) => {
   try {
-    const { name, email, password, age, height, weight, healthGoal, emergencyContact } = req.body;
+    const { name, email, password, gender, age, height, weight, healthGoal, emergencyContact } = req.body;
 
     if (!isValidEmail(email)) {
       return res.status(400).json({ message: "Enter a valid email address with @ and domain." });
@@ -40,6 +40,7 @@ router.post("/register", async (req, res) => {
       name,
       email,
       password,
+      gender,
       age,
       height,
       weight,
@@ -55,6 +56,7 @@ router.post("/register", async (req, res) => {
         id: user._id,
         name: user.name,
         email: user.email,
+        gender: user.gender,
         role: user.role
       },
       subscription
@@ -77,6 +79,7 @@ router.post("/login", async (req, res) => {
           name: "LifeBuddy Admin",
           email,
           password: adminPassword,
+          gender: "other",
           role: "admin",
           healthGoal: "Manage LifeBuddy platform"
         });
@@ -93,6 +96,7 @@ router.post("/login", async (req, res) => {
         name: "LifeBuddy Admin",
         email,
         password: adminPassword,
+        gender: "other",
         role: "admin",
         healthGoal: "Manage LifeBuddy platform"
       });
@@ -119,6 +123,7 @@ router.post("/login", async (req, res) => {
         id: user._id,
         name: user.name,
         email: user.email,
+        gender: user.gender,
         role: user.role
       },
       subscription
@@ -191,6 +196,21 @@ router.post("/reset-password", async (req, res) => {
 router.get("/me", protect, async (req, res) => {
   const subscription = await getSubscriptionStatus(req.user);
   res.json({ user: req.user, subscription });
+});
+
+router.patch("/profile", protect, async (req, res) => {
+  try {
+    const allowed = ["name", "gender", "age", "height", "weight", "healthGoal", "emergencyContact", "dailyTargets"];
+    allowed.forEach((field) => {
+      if (req.body[field] !== undefined) req.user[field] = req.body[field];
+    });
+
+    await req.user.save();
+    const subscription = await getSubscriptionStatus(req.user);
+    res.json({ user: req.user, subscription, message: "Profile updated successfully." });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
 });
 
 module.exports = router;

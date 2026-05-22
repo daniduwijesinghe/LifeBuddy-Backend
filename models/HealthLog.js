@@ -25,11 +25,7 @@ const healthLogSchema = new mongoose.Schema(
     },
     stressLevel: { type: Number, min: 0, max: 10, default: 0 },
     alcoholUsed: { type: Boolean, default: false },
-    alcoholLevel: {
-      type: String,
-      enum: ["none", "low", "medium", "high"],
-      default: "none"
-    },
+    alcoholLevel: { type: Number, min: 0, max: 10, default: 0 },
     softDrinkCount: { type: Number, default: 0 },
     oilyFoodCount: { type: Number, default: 0 },
     score: { type: Number, default: 0 },
