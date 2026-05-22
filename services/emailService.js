@@ -1,12 +1,11 @@
 const nodemailer = require("nodemailer");
 
-const sendResetCode = async (email, code) => {
+const createTransporter = () => {
   if (!process.env.SMTP_HOST || !process.env.SMTP_USER || !process.env.SMTP_PASS) {
-    console.log(`LifeBuddy reset code for ${email}: ${code}`);
-    return { sent: false, message: "SMTP not configured. Code printed in backend terminal." };
+    return null;
   }
 
-  const transporter = nodemailer.createTransport({
+  return nodemailer.createTransport({
     host: process.env.SMTP_HOST,
     port: Number(process.env.SMTP_PORT || 587),
     secure: Number(process.env.SMTP_PORT) === 465,
@@ -15,16 +14,38 @@ const sendResetCode = async (email, code) => {
       pass: process.env.SMTP_PASS
     }
   });
+};
+
+const sendCodeEmail = async ({ email, code, subject, purpose }) => {
+  const transporter = createTransporter();
+  if (!transporter) {
+    console.log(`LifeBuddy ${purpose} code for ${email}: ${code}`);
+    return { sent: false, message: "SMTP not configured. Code printed in backend terminal." };
+  }
 
   await transporter.sendMail({
     from: process.env.SMTP_FROM || "LifeBuddy <no-reply@lifebuddy.app>",
     to: email,
-    subject: "LifeBuddy password reset code",
-    text: `Your LifeBuddy one-time password reset code is ${code}. It expires in 10 minutes.`,
-    html: `<p>Your LifeBuddy one-time password reset code is:</p><h2>${code}</h2><p>This code expires in 10 minutes.</p>`
+    subject,
+    text: `Your LifeBuddy ${purpose} code is ${code}. It expires in 10 minutes.`,
+    html: `<p>Your LifeBuddy ${purpose} code is:</p><h2>${code}</h2><p>This code expires in 10 minutes.</p>`
   });
 
-  return { sent: true, message: "Reset code sent to email." };
+  return { sent: true, message: `${subject} sent to email.` };
 };
 
-module.exports = { sendResetCode };
+const sendResetCode = (email, code) => sendCodeEmail({
+  email,
+  code,
+  subject: "LifeBuddy password reset code",
+  purpose: "password reset"
+});
+
+const sendVerificationCode = (email, code) => sendCodeEmail({
+  email,
+  code,
+  subject: "LifeBuddy email verification code",
+  purpose: "email verification"
+});
+
+module.exports = { sendResetCode, sendVerificationCode };

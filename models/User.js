@@ -25,6 +25,9 @@ const userSchema = new mongoose.Schema(
       }
     ],
     role: { type: String, enum: ["user", "admin"], default: "user" },
+    emailVerified: { type: Boolean, default: false },
+    emailVerificationCode: String,
+    emailVerificationExpires: Date,
     resetCode: String,
     resetCodeExpires: Date,
     freeTrialStart: { type: Date, default: Date.now },
