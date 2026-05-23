@@ -150,7 +150,9 @@ router.post("/login", async (req, res) => {
       }
     }
 
-    if (!user || !(await user.matchPassword(password))) return res.status(401).json({ message: "Invalid email or password" });
+    if (!user) return res.status(404).json({ message: "You are not a registered user. Please register first." });
+
+    if (!(await user.matchPassword(password))) return res.status(401).json({ message: "Invalid password. If you forgot it, use Forgotten password." });
 
     if (user.emailVerified === false) {
       const code = makeCode();
@@ -235,4 +237,6 @@ router.patch("/profile", protect, async (req, res) => {
 });
 
 module.exports = router;
+
+
 

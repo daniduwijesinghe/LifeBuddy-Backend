@@ -7,6 +7,8 @@ const medicineSchema = new mongoose.Schema(
     dosage: { type: String, required: true },
     time: { type: String, required: true },
     repeatDays: [{ type: String }],
+    alarmSound: { type: String, default: "Classic Bell" },
+    alarmMode: { type: String, enum: ["notification", "alarm"], default: "alarm" },
     status: {
       type: String,
       enum: ["active", "paused"],
@@ -22,3 +24,5 @@ const medicineSchema = new mongoose.Schema(
 );
 
 module.exports = mongoose.model("Medicine", medicineSchema);
+
+
