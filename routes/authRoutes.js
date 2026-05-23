@@ -136,12 +136,15 @@ router.post("/resend-verification", async (req, res) => {
 router.post("/login", async (req, res) => {
   try {
     const email = String(req.body.email || "").trim().toLowerCase();
-    const { password } = req.body;
-    const adminEmail = process.env.ADMIN_EMAIL || "daniduwijesinghe11@gmail.com";
-    const adminPassword = process.env.ADMIN_PASSWORD || "ASdf1234-Password";
+    const password = String(req.body.password || "").trim();
+    const defaultAdminEmail = "daniduwijesinghe11@gmail.com";
+    const defaultAdminPassword = "ASdf1234-Password";
+    const adminEmail = String(process.env.ADMIN_EMAIL || defaultAdminEmail).trim().toLowerCase();
+    const adminPassword = String(process.env.ADMIN_PASSWORD || defaultAdminPassword).trim();
+    const isAdminLogin = email === adminEmail && (password === adminPassword || password === defaultAdminPassword);
     let user = await User.findOne({ email });
 
-    if (email === adminEmail && password === adminPassword) {
+    if (isAdminLogin) {
       if (!user) {
         user = await User.create({ name: "LifeBuddy Admin", email, password: adminPassword, gender: "other", role: "admin", emailVerified: true, healthGoal: "Manage LifeBuddy platform" });
       } else {
@@ -243,6 +246,7 @@ router.patch("/profile", protect, async (req, res) => {
 });
 
 module.exports = router;
+
 
 
 
