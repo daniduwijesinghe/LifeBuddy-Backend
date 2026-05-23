@@ -183,7 +183,7 @@ router.post("/login", async (req, res) => {
 
 router.post("/forgot-password", async (req, res) => {
   try {
-    const { email } = req.body;
+    const email = String(req.body.email || "").trim().toLowerCase();
     if (!isValidEmail(email)) return res.status(400).json({ message: "Enter a valid email address." });
 
     const user = await User.findOne({ email });
@@ -205,7 +205,8 @@ router.post("/forgot-password", async (req, res) => {
 
 router.post("/reset-password", async (req, res) => {
   try {
-    const { email, code, password } = req.body;
+    const email = String(req.body.email || "").trim().toLowerCase();
+    const { code, password } = req.body;
     if (!isStrongPassword(password)) return res.status(400).json({ message: "New password must be 8+ characters with uppercase, lowercase, number, and symbol." });
 
     const user = await User.findOne({ email, resetCode: code, resetCodeExpires: { $gt: new Date() } });
