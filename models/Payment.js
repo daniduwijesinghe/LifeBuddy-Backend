@@ -26,7 +26,26 @@ const paymentSchema = new mongoose.Schema(
     cardBrand: String,
     maskedCard: String,
     cardExpiry: String,
-    saveCardPreference: { type: Boolean, default: false }
+    saveCardPreference: { type: Boolean, default: false },
+    bankTransfer: {
+      bankName: String,
+      accountNumber: String,
+      accountHolder: String,
+      transferReference: String,
+      transferDate: Date,
+      payerName: String,
+      userNote: String,
+      adminNote: String,
+      verifiedBy: String,
+      verifiedAt: Date
+    },
+    slip: {
+      fileName: String,
+      mimeType: String,
+      size: Number,
+      data: { type: String, select: false },
+      uploadedAt: Date
+    }
   },
   { timestamps: true }
 );

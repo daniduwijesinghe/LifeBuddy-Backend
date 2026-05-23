@@ -245,8 +245,13 @@ router.get("/platform-report", async (req, res) => {
 });
 
 router.get("/payments", async (req, res) => {
+  const baseUrl = (process.env.BACKEND_PUBLIC_URL || `${req.protocol}://${req.get("host")}`).replace(/\/$/, "");
   const payments = await Payment.find().sort({ paymentDate: -1 });
-  res.json(payments);
+  res.json(payments.map((payment) => {
+    const item = payment.toObject();
+    if (item.slip?.fileName) item.slipUrl = `${baseUrl}/api/payments/slip/${item._id}`;
+    return item;
+  }));
 });
 
 router.get("/health-logs", async (req, res) => {

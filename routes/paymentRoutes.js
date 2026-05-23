@@ -1,20 +1,37 @@
 ﻿const crypto = require("crypto");
 const express = require("express");
+const multer = require("multer");
 const Payment = require("../models/Payment");
 const Notification = require("../models/Notification");
+const User = require("../models/User");
 const { protect, adminOnly } = require("../middleware/authMiddleware");
 const { getSubscriptionStatus } = require("../services/subscriptionService");
 
 const router = express.Router();
+
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 6 * 1024 * 1024 },
+  fileFilter: (req, file, cb) => {
+    const allowed = ["image/jpeg", "image/jpg", "image/png", "application/pdf"];
+    if (allowed.includes(file.mimetype)) return cb(null, true);
+    cb(new Error("Only JPG, PNG, and PDF payment slips are allowed."));
+  }
+});
+
+const bankDetails = {
+  bankName: process.env.BANK_NAME || "Your Bank Name",
+  accountHolder: process.env.BANK_ACCOUNT_HOLDER || "LifeBuddy",
+  accountNumber: process.env.BANK_ACCOUNT_NUMBER || "Add bank account number in Render",
+  branch: process.env.BANK_BRANCH || "Main Branch"
+};
 
 const gatewayBaseUrl = () => process.env.PAYHERE_SANDBOX === "true"
   ? "https://sandbox.payhere.lk/pay/checkout"
   : "https://www.payhere.lk/pay/checkout";
 
 const backendBaseUrl = (req) => (process.env.BACKEND_PUBLIC_URL || `${req.protocol}://${req.get("host")}`).replace(/\/$/, "");
-
 const planAmount = (plan) => plan === "Family" ? 1200 : 700;
-
 const md5 = (value) => crypto.createHash("md5").update(String(value)).digest("hex").toUpperCase();
 
 const paymentHash = ({ merchantId, orderId, amount, currency, merchantSecret }) => {
@@ -28,9 +45,142 @@ const statusFromPayHere = (statusCode) => {
   return "Pending";
 };
 
+const publicPayment = (payment, req) => {
+  const item = payment.toObject ? payment.toObject() : payment;
+  if (item.slip?.data) delete item.slip.data;
+  if (item.slip?.fileName) item.slipUrl = `${backendBaseUrl(req)}/api/payments/slip/${item._id}`;
+  return item;
+};
+
+const activateManualPayment = async (payment, adminEmail, adminNote) => {
+  payment.paymentStatus = "Paid";
+  payment.paymentDate = new Date();
+  payment.expiryDate = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+  payment.bankTransfer.verifiedBy = adminEmail;
+  payment.bankTransfer.verifiedAt = new Date();
+  payment.bankTransfer.adminNote = adminNote || "Manual bank slip verified by admin.";
+  await payment.save();
+
+  const user = await User.findOne({ email: payment.userEmail });
+  if (user) {
+    await Notification.create({
+      user: user._id,
+      title: "Bank payment verified",
+      message: `${payment.plan} plan activated until ${payment.expiryDate.toDateString()}.`,
+      type: "report"
+    });
+  }
+};
+
 router.get("/subscription", protect, async (req, res) => {
   const subscription = await getSubscriptionStatus(req.user);
   res.json(subscription);
+});
+
+router.get("/bank-details", protect, async (req, res) => {
+  res.json({ ...bankDetails, plans: [{ name: "Premium", amount: 700 }, { name: "Family", amount: 1200 }] });
+});
+
+router.post("/manual-slip", protect, upload.single("slip"), async (req, res) => {
+  try {
+    const plan = req.body.plan === "Family" ? "Family" : "Premium";
+    const amount = Number(req.body.amount);
+    const expectedAmount = planAmount(plan);
+
+    if (!req.file) return res.status(400).json({ message: "Please upload payment slip image or PDF." });
+    if (!Number.isFinite(amount) || amount !== expectedAmount) {
+      return res.status(400).json({ message: `Amount must be Rs. ${expectedAmount} for ${plan} plan.` });
+    }
+    if (!String(req.body.transferReference || "").trim()) return res.status(400).json({ message: "Bank reference number is required." });
+    if (!req.body.transferDate) return res.status(400).json({ message: "Payment date is required." });
+
+    const payment = await Payment.create({
+      userEmail: req.user.email,
+      plan,
+      amount,
+      paymentStatus: "Pending",
+      paymentDate: new Date(req.body.transferDate),
+      expiryDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+      gateway: "Manual Bank Transfer",
+      gatewayOrderId: `BANK-${Date.now()}-${String(req.user._id).slice(-6)}`,
+      gatewayMethod: "Bank slip upload",
+      bankTransfer: {
+        bankName: String(req.body.bankName || bankDetails.bankName).trim(),
+        accountNumber: String(req.body.accountNumber || bankDetails.accountNumber).trim(),
+        accountHolder: bankDetails.accountHolder,
+        transferReference: String(req.body.transferReference).trim(),
+        transferDate: new Date(req.body.transferDate),
+        payerName: String(req.body.payerName || req.user.name || "").trim(),
+        userNote: String(req.body.userNote || "").trim()
+      },
+      slip: {
+        fileName: req.file.originalname,
+        mimeType: req.file.mimetype,
+        size: req.file.size,
+        data: req.file.buffer.toString("base64"),
+        uploadedAt: new Date()
+      }
+    });
+
+    await Notification.create({
+      user: req.user._id,
+      title: "Payment slip submitted",
+      message: "Your bank payment slip is pending admin verification.",
+      type: "report"
+    });
+
+    res.status(201).json({ payment: publicPayment(payment, req), message: "Payment slip uploaded. Admin will verify it soon." });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+router.get("/slip/:id", protect, async (req, res) => {
+  try {
+    const payment = await Payment.findById(req.params.id).select("+slip.data");
+    if (!payment || !payment.slip?.data) return res.status(404).send("Slip not found");
+    if (req.user.role !== "admin" && payment.userEmail !== req.user.email) return res.status(403).send("Not allowed");
+
+    const buffer = Buffer.from(payment.slip.data, "base64");
+    res.setHeader("Content-Type", payment.slip.mimeType || "application/octet-stream");
+    res.setHeader("Content-Disposition", `inline; filename="${payment.slip.fileName || "payment-slip"}"`);
+    res.send(buffer);
+  } catch (error) {
+    res.status(500).send(error.message);
+  }
+});
+
+router.patch("/manual/:id/verify", protect, adminOnly, async (req, res) => {
+  try {
+    const payment = await Payment.findById(req.params.id);
+    if (!payment) return res.status(404).json({ message: "Payment not found." });
+    if (payment.gateway !== "Manual Bank Transfer") return res.status(400).json({ message: "Only manual bank payments can be verified here." });
+
+    const status = req.body.status === "Paid" ? "Paid" : "Failed";
+    if (status === "Paid") {
+      await activateManualPayment(payment, req.user.email, req.body.adminNote);
+    } else {
+      payment.paymentStatus = "Failed";
+      payment.bankTransfer.adminNote = req.body.adminNote || "Manual bank slip rejected by admin.";
+      payment.bankTransfer.verifiedBy = req.user.email;
+      payment.bankTransfer.verifiedAt = new Date();
+      await payment.save();
+
+      const user = await User.findOne({ email: payment.userEmail });
+      if (user) {
+        await Notification.create({
+          user: user._id,
+          title: "Bank payment rejected",
+          message: payment.bankTransfer.adminNote,
+          type: "warning"
+        });
+      }
+    }
+
+    res.json({ payment: publicPayment(payment, req), message: `Payment marked as ${status}.` });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
 });
 
 router.post("/checkout", protect, async (req, res) => {
@@ -82,7 +232,7 @@ router.post("/checkout", protect, async (req, res) => {
     };
 
     res.status(201).json({
-      payment,
+      payment: publicPayment(payment, req),
       checkoutUrl: `${baseUrl}/api/payments/payhere/checkout/${orderId}`,
       gateway: "PayHere",
       acceptedMethods: ["VISA", "MASTER", "AMEX", "GENIE", "FRIMI", "EZCASH", "MCASH"],
@@ -153,13 +303,10 @@ router.post("/payhere/notify", express.urlencoded({ extended: false }), async (r
     payment.maskedCard = card_no;
     payment.cardExpiry = card_expiry;
     payment.cardBrand = method;
-    if (payment.paymentStatus === "Paid") {
-      payment.expiryDate = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
-    }
+    if (payment.paymentStatus === "Paid") payment.expiryDate = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
     await payment.save();
 
     if (payment.paymentStatus === "Paid") {
-      const User = require("../models/User");
       const user = await User.findOne({ email: payment.userEmail });
       if (user) {
         await Notification.create({
@@ -182,16 +329,14 @@ router.get("/payhere/return", (req, res) => {
 });
 
 router.get("/payhere/cancel", async (req, res) => {
-  if (req.query.order_id) {
-    await Payment.findOneAndUpdate({ gatewayOrderId: req.query.order_id }, { paymentStatus: "Failed" });
-  }
+  if (req.query.order_id) await Payment.findOneAndUpdate({ gatewayOrderId: req.query.order_id }, { paymentStatus: "Failed" });
   res.send("LifeBuddy payment was cancelled. You can return to the app.");
 });
 
 router.post("/pay", protect, async (req, res) => {
   try {
     if (process.env.ALLOW_DEMO_PAYMENTS !== "true") {
-      return res.status(403).json({ message: "Demo payments are disabled. Use secure gateway checkout." });
+      return res.status(403).json({ message: "Demo payments are disabled. Use secure gateway checkout or manual bank slip upload." });
     }
 
     const { plan = "Premium" } = req.body;
@@ -212,7 +357,7 @@ router.post("/pay", protect, async (req, res) => {
       message: `${plan} plan activated until ${payment.expiryDate.toDateString()}.`,
       type: "report"
     });
-    res.status(201).json({ payment, subscription });
+    res.status(201).json({ payment: publicPayment(payment, req), subscription });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
@@ -221,7 +366,7 @@ router.post("/pay", protect, async (req, res) => {
 router.post("/admin-record", protect, adminOnly, async (req, res) => {
   try {
     const payment = await Payment.create(req.body);
-    res.status(201).json(payment);
+    res.status(201).json(publicPayment(payment, req));
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
@@ -229,7 +374,7 @@ router.post("/admin-record", protect, adminOnly, async (req, res) => {
 
 router.get("/history", protect, async (req, res) => {
   const payments = await Payment.find({ userEmail: req.user.email }).sort({ paymentDate: -1 });
-  res.json(payments);
+  res.json(payments.map((payment) => publicPayment(payment, req)));
 });
 
 module.exports = router;

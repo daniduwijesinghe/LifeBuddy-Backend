@@ -74,11 +74,13 @@ router.post("/register", async (req, res) => {
     }
 
     const result = await sendVerificationCode(cleanEmail, code);
+    if (!result.sent) return res.status(503).json({ message: result.message });
+
     res.status(201).json({
-      message: result.sent ? "Verification code sent to your email." : result.message,
+      message: "Verification code sent to your email.",
       needsVerification: true,
       email: cleanEmail,
-      sent: result.sent
+      sent: true
     });
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -123,7 +125,9 @@ router.post("/resend-verification", async (req, res) => {
     await user.save();
 
     const result = await sendVerificationCode(email, code);
-    res.json({ message: result.message, sent: result.sent });
+    if (!result.sent) return res.status(503).json({ message: result.message });
+
+    res.json({ message: result.message, sent: true });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
@@ -159,8 +163,10 @@ router.post("/login", async (req, res) => {
       user.emailVerificationExpires = codeExpiry();
       await user.save();
       const result = await sendVerificationCode(user.email, code);
+      if (!result.sent) return res.status(503).json({ message: result.message });
+
       return res.status(403).json({
-        message: result.sent ? "Email not verified. A new verification code was sent." : result.message,
+        message: "Email not verified. A new verification code was sent.",
         needsVerification: true,
         email: user.email
       });
@@ -186,7 +192,9 @@ router.post("/forgot-password", async (req, res) => {
     await user.save();
 
     const result = await sendResetCode(email, code);
-    res.json({ message: result.message, sent: result.sent });
+    if (!result.sent) return res.status(503).json({ message: result.message });
+
+    res.json({ message: result.message, sent: true });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
@@ -235,6 +243,8 @@ router.patch("/profile", protect, async (req, res) => {
 });
 
 module.exports = router;
+
+
 
 
 
