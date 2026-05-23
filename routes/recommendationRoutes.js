@@ -1,8 +1,10 @@
 const express = require("express");
 const HealthLog = require("../models/HealthLog");
-const { protect } = require("../middleware/authMiddleware");
+const { protect, requireActiveSubscription } = require("../middleware/authMiddleware");
 
 const router = express.Router();
+
+router.use(protect, requireActiveSubscription);
 
 const avg = (items, field) => {
   if (!items.length) return 0;

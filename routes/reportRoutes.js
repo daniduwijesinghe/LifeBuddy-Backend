@@ -1,10 +1,12 @@
 const express = require("express");
 const HealthLog = require("../models/HealthLog");
 const WeeklyReport = require("../models/WeeklyReport");
-const { protect } = require("../middleware/authMiddleware");
+const { protect, requireActiveSubscription } = require("../middleware/authMiddleware");
 const { detectWeeklyPatterns } = require("../services/healthScoreService");
 
 const router = express.Router();
+
+router.use(protect, requireActiveSubscription);
 
 router.post("/weekly", protect, async (req, res) => {
   const weekEnd = new Date();

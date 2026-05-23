@@ -1,10 +1,12 @@
 const express = require("express");
 const HealthLog = require("../models/HealthLog");
 const Notification = require("../models/Notification");
-const { protect } = require("../middleware/authMiddleware");
+const { protect, requireActiveSubscription } = require("../middleware/authMiddleware");
 const { calculateHealthScore, detectWeeklyPatterns } = require("../services/healthScoreService");
 
 const router = express.Router();
+
+router.use(protect, requireActiveSubscription);
 
 router.post("/", protect, async (req, res) => {
   try {
