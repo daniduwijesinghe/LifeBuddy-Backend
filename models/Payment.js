@@ -1,4 +1,4 @@
-const mongoose = require("mongoose");
+﻿const mongoose = require("mongoose");
 
 const paymentSchema = new mongoose.Schema(
   {
@@ -18,7 +18,15 @@ const paymentSchema = new mongoose.Schema(
     expiryDate: {
       type: Date,
       default: () => new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
-    }
+    },
+    gateway: { type: String, default: "PayHere" },
+    gatewayOrderId: String,
+    gatewayPaymentId: String,
+    gatewayMethod: String,
+    cardBrand: String,
+    maskedCard: String,
+    cardExpiry: String,
+    saveCardPreference: { type: Boolean, default: false }
   },
   { timestamps: true }
 );

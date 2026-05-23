@@ -1,4 +1,4 @@
-const nodemailer = require("nodemailer");
+﻿const nodemailer = require("nodemailer");
 
 const createTransporter = () => {
   if (!process.env.SMTP_HOST || !process.env.SMTP_USER || !process.env.SMTP_PASS) {
@@ -20,7 +20,7 @@ const sendCodeEmail = async ({ email, code, subject, purpose }) => {
   const transporter = createTransporter();
   if (!transporter) {
     console.log(`LifeBuddy ${purpose} code for ${email}: ${code}`);
-    return { sent: false, message: "SMTP not configured. Code printed in backend terminal." };
+    return { sent: false, message: "Email service is not configured yet. Please contact LifeBuddy support or try again later." };
   }
 
   await transporter.sendMail({
@@ -49,3 +49,4 @@ const sendVerificationCode = (email, code) => sendCodeEmail({
 });
 
 module.exports = { sendResetCode, sendVerificationCode };
+

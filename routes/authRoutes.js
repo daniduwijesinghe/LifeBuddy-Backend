@@ -1,4 +1,4 @@
-const express = require("express");
+﻿const express = require("express");
 const jwt = require("jsonwebtoken");
 const User = require("../models/User");
 const { protect } = require("../middleware/authMiddleware");
@@ -78,8 +78,7 @@ router.post("/register", async (req, res) => {
       message: result.sent ? "Verification code sent to your email." : result.message,
       needsVerification: true,
       email: cleanEmail,
-      sent: result.sent,
-      devCode: result.sent ? undefined : code
+      sent: result.sent
     });
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -124,7 +123,7 @@ router.post("/resend-verification", async (req, res) => {
     await user.save();
 
     const result = await sendVerificationCode(email, code);
-    res.json({ message: result.message, sent: result.sent, devCode: result.sent ? undefined : code });
+    res.json({ message: result.message, sent: result.sent });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
@@ -163,8 +162,7 @@ router.post("/login", async (req, res) => {
       return res.status(403).json({
         message: result.sent ? "Email not verified. A new verification code was sent." : result.message,
         needsVerification: true,
-        email: user.email,
-        devCode: result.sent ? undefined : code
+        email: user.email
       });
     }
 
@@ -188,7 +186,7 @@ router.post("/forgot-password", async (req, res) => {
     await user.save();
 
     const result = await sendResetCode(email, code);
-    res.json({ message: result.message, sent: result.sent, devCode: result.sent ? undefined : code });
+    res.json({ message: result.message, sent: result.sent });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
@@ -237,6 +235,7 @@ router.patch("/profile", protect, async (req, res) => {
 });
 
 module.exports = router;
+
 
 
 
