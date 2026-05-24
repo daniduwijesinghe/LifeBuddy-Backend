@@ -28,10 +28,20 @@ const healthLogSchema = new mongoose.Schema(
     alcoholLevel: { type: Number, min: 0, max: 10, default: 0 },
     softDrinkCount: { type: Number, default: 0 },
     oilyFoodCount: { type: Number, default: 0 },
+    dailySteps: { type: Number, default: 0 },
     score: { type: Number, default: 0 },
     status: { type: String, enum: ["Good", "Medium", "Risky"], default: "Medium" },
     recommendations: [String],
-    warnings: [String]
+    warnings: [String],
+    aiPrediction: {
+      wellnessStatus: String,
+      wellnessConfidence: Number,
+      recommendationCategory: String,
+      recommendationConfidence: Number,
+      bmi: Number,
+      advice: [String],
+      error: String
+    }
   },
   { timestamps: true }
 );
