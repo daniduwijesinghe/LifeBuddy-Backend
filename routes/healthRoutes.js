@@ -3,7 +3,7 @@ const HealthLog = require("../models/HealthLog");
 const Notification = require("../models/Notification");
 const { protect, requireActiveSubscription } = require("../middleware/authMiddleware");
 const { calculateHealthScore, detectWeeklyPatterns } = require("../services/healthScoreService");
-const { predictHealth } = require("../utils/mlService");
+const { predictHealth, buildLocalPrediction } = require("../utils/mlService");
 
 const router = express.Router();
 
@@ -49,8 +49,14 @@ router.post("/", protect, async (req, res) => {
       };
       await log.save();
     } catch (mlError) {
+      const backupResult = buildLocalPrediction(log, req.user);
       log.aiPrediction = {
-        error: "ML service unavailable. Rule-based LifeBuddy advice was saved."
+        wellnessStatus: backupResult.wellnessStatus,
+        wellnessConfidence: backupResult.wellnessConfidence,
+        recommendationCategory: backupResult.recommendationCategory,
+        recommendationConfidence: backupResult.recommendationConfidence,
+        bmi: backupResult.bmi,
+        advice: backupResult.advice
       };
       await log.save();
     }
